@@ -80,24 +80,18 @@ This project reduces manual effort by allowing users to:
 - Claude-powered dataset insights
 - Model explanation support
 
-### System Flow
-User Upload
-     ↓
-Data Profiling
-     ↓
-Data Cleaning Engine
-     ↓
-Feature Engineering
-     ↓
-Model Training Layer
-     ↓
-Evaluation Engine
-     ↓
-Drift Monitoring (PSI)
-     ↓
-AI Insight Layer (Claude)
-     ↓
-Downloads (Predictions + Model Bundle)
+### 🏗 System Flow
+
+User Upload  
+→ Data Profiling  
+→ Data Cleaning Engine  
+→ Feature Engineering  
+→ Model Training Layer  
+→ Evaluation Engine  
+→ Drift Monitoring (PSI)  
+→ AI Insight Layer (Claude)  
+→ Downloads (Predictions + Model Bundle)
+
 ---
 
 ## ⚙️ Installation (Local)
