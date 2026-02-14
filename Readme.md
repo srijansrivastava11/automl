@@ -16,7 +16,7 @@ A Streamlit-based web application that automates:
 
 ## 🚀 Live Demo
 
-
+https://automl-dwtreyou58t9cpg7f4yehz.streamlit.app/
 
 ---
 
