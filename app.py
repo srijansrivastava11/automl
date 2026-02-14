@@ -1,5 +1,4 @@
-# app.py — AutoML POC v2.1 (FAST + KPI + JSON Expand + % Parsing + LLM Chat)
-# Install: pip install streamlit pandas numpy matplotlib seaborn scikit-learn openpyxl xlrd plotly anthropic
+
 
 import pickle, warnings, io, json, re
 warnings.filterwarnings("ignore")
@@ -43,7 +42,7 @@ except ImportError:
 # ═══════════════════════════════════════════
 # PAGE CONFIG & STYLES
 # ═══════════════════════════════════════════
-st.set_page_config(page_title="AutoML POC v2.1", page_icon="⚡", layout="wide")
+st.set_page_config(page_title="AutoML POC v1.0", page_icon="⚡", layout="wide")
 st.markdown("""
 <style>
     .title{font-size:2.3rem;font-weight:800;color:#0f172a;text-align:center;margin-bottom:0;letter-spacing:-0.5px}
@@ -59,7 +58,7 @@ st.markdown("""
     .stProgress>div>div>div>div{background:linear-gradient(90deg,#3b82f6,#8b5cf6)}
 </style>
 """, unsafe_allow_html=True)
-st.markdown('<div class="title">⚡ AutoML POC — v2.1</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">⚡ AutoML POC — v1.0</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI → Download</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════
@@ -72,7 +71,7 @@ with st.expander("⚙️ Configuration & Quick Guide", expanded=False):
                               help="**Fast**=smaller trees, capped previews. **Balanced**=larger models, PSI on.")
     with cfg_r:
         st.markdown("**Steps:** Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → AI Chat → Download")
-    st.caption("v2.1 — JSON Expand + %/$/ Currency Parsing + Claude AI Chat")
+    st.caption("v1.0 — JSON Expand + %/$/ Currency Parsing + Claude AI Chat")
 
 is_fast = (speed_mode == "Fast")
 MAX_PREVIEW = 200 if is_fast else 400
@@ -1107,4 +1106,4 @@ if st.session_state.results_df is not None:
         else: st.info("No model bundle.")
 
 st.markdown("---")
-st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v2.1 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI Chat | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v1.0 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI Chat | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
