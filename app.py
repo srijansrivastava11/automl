@@ -57,7 +57,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 st.markdown('<div class="title">⚡ AutoML POC — v1.0</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI (via Secrets) → Download</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI → Download</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════
 # SETTINGS (inline)
@@ -1207,7 +1207,7 @@ if st.session_state.results_df is not None:
     st.markdown('<div class="tooltip-box">📌 <b>What to do:</b> Ask any question about your uploaded data, cleaning results, or model performance. Claude analyzes your data context (schema, stats, sample rows, model results) and gives specific answers.</div>',unsafe_allow_html=True)
 
     # ── Retrieve API key from Streamlit secrets ──
-    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    api_key = st.secrets.get("CLAUD_KEY", None)
 
     if not api_key:
         st.error("⚠️ `ANTHROPIC_API_KEY` not found in Streamlit secrets. Add it to `.streamlit/secrets.toml` or your Streamlit Cloud secrets.")
@@ -1267,4 +1267,4 @@ if st.session_state.results_df is not None:
         else: st.info("No model bundle.")
 
 st.markdown("---")
-st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v1.0 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI (via st.secrets) | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v1.0 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
