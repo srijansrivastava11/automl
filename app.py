@@ -621,6 +621,168 @@ with st.expander("👀 Preview cleaned",expanded=False): st.dataframe(df_clean.h
 date_cols=df_clean.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
 
 # ═══════════════════════════════════════════
+# STEP 4.5 — COLUMN MANAGER (Delete & Filter)
+# ═══════════════════════════════════════════
+st.markdown("---")
+st.markdown("## 🗂️ Column Manager — Delete & Filter")
+st.markdown('<div class="tooltip-box">📌 <b>Delete columns</b> you don\'t need, and <b>filter rows</b> by column values. Changes apply to the working dataset used in all downstream steps.</div>',unsafe_allow_html=True)
+
+# Use df_final if already set (from previous interactions), else df_clean
+if st.session_state.df_final is not None:
+    _cm_df = st.session_state.df_final.copy()
+else:
+    _cm_df = df_clean.copy()
+
+# ── 4.5a: Delete Columns ──
+with st.expander("🗑️ Delete Columns", expanded=False):
+    cols_to_drop = st.multiselect(
+        "Select columns to remove from dataset",
+        _cm_df.columns.tolist(),
+        default=[],
+        help="These columns will be permanently removed from the working dataset."
+    )
+    if cols_to_drop:
+        st.warning("⚠️ Will remove **{}** column(s): `{}`".format(len(cols_to_drop), "`, `".join(cols_to_drop)))
+
+# ── 4.5b: Filter Rows ──
+with st.expander("🔍 Filter Rows", expanded=False):
+    st.markdown("Add one or more filters. Rows matching **all** conditions are kept.")
+
+    if "cm_filters" not in st.session_state:
+        st.session_state.cm_filters = []
+
+    filter_col = st.selectbox("Column to filter on", ["— select —"] + _cm_df.columns.tolist(), key="cm_fcol")
+
+    if filter_col != "— select —":
+        col_dtype = str(_cm_df[filter_col].dtype)
+
+        # Numeric filter
+        if pd.api.types.is_numeric_dtype(_cm_df[filter_col]):
+            col_min = float(_cm_df[filter_col].min()) if not _cm_df[filter_col].isna().all() else 0.0
+            col_max = float(_cm_df[filter_col].max()) if not _cm_df[filter_col].isna().all() else 1.0
+            fc1, fc2 = st.columns(2)
+            with fc1:
+                f_op = st.selectbox("Condition", ["between", ">=", "<=", ">", "<", "==", "!="], key="cm_fop")
+            with fc2:
+                if f_op == "between":
+                    f_range = st.slider("Range", min_value=col_min, max_value=col_max, value=(col_min, col_max), key="cm_frange")
+                else:
+                    f_val = st.number_input("Value", value=col_min, key="cm_fval")
+            if st.button("➕ Add numeric filter", key="cm_addnum"):
+                if f_op == "between":
+                    st.session_state.cm_filters.append({"col": filter_col, "type": "numeric", "op": "between", "val": f_range})
+                else:
+                    st.session_state.cm_filters.append({"col": filter_col, "type": "numeric", "op": f_op, "val": f_val})
+
+        # Datetime filter
+        elif pd.api.types.is_datetime64_any_dtype(_cm_df[filter_col]):
+            dt_min = _cm_df[filter_col].min()
+            dt_max = _cm_df[filter_col].max()
+            if pd.notna(dt_min) and pd.notna(dt_max):
+                fc1, fc2 = st.columns(2)
+                with fc1:
+                    d_start = st.date_input("From", value=dt_min.date(), key="cm_dstart")
+                with fc2:
+                    d_end = st.date_input("To", value=dt_max.date(), key="cm_dend")
+                if st.button("➕ Add date filter", key="cm_adddt"):
+                    st.session_state.cm_filters.append({"col": filter_col, "type": "datetime", "op": "between", "val": (str(d_start), str(d_end))})
+            else:
+                st.info("Column has no valid dates to filter on.")
+
+        # Categorical / object filter
+        else:
+            unique_vals = _cm_df[filter_col].dropna().unique().tolist()
+            if len(unique_vals) <= 200:
+                f_selected = st.multiselect("Keep rows where value is in:", unique_vals, default=unique_vals[:min(5, len(unique_vals))], key="cm_fcat")
+                f_exclude = st.checkbox("Invert (exclude selected instead)", key="cm_fexclude")
+                if st.button("➕ Add category filter", key="cm_addcat"):
+                    st.session_state.cm_filters.append({"col": filter_col, "type": "categorical", "op": "exclude" if f_exclude else "include", "val": f_selected})
+            else:
+                f_contains = st.text_input("Keep rows containing (text search):", key="cm_ftext")
+                f_case = st.checkbox("Case sensitive", value=False, key="cm_fcase")
+                if st.button("➕ Add text filter", key="cm_addtxt"):
+                    st.session_state.cm_filters.append({"col": filter_col, "type": "text", "op": "contains", "val": f_contains, "case": f_case})
+
+    # Show active filters
+    if st.session_state.cm_filters:
+        st.markdown("**Active Filters:**")
+        for i, f in enumerate(st.session_state.cm_filters):
+            if f["type"] == "numeric" and f["op"] == "between":
+                desc = "📐 **{}** between {} and {}".format(f["col"], f["val"][0], f["val"][1])
+            elif f["type"] == "numeric":
+                desc = "📐 **{}** {} {}".format(f["col"], f["op"], f["val"])
+            elif f["type"] == "datetime":
+                desc = "📅 **{}** from {} to {}".format(f["col"], f["val"][0], f["val"][1])
+            elif f["type"] == "categorical":
+                action = "exclude" if f["op"] == "exclude" else "include"
+                desc = "🏷️ **{}** {} {} value(s)".format(f["col"], action, len(f["val"]))
+            elif f["type"] == "text":
+                desc = "🔤 **{}** contains '{}'".format(f["col"], f["val"])
+            else:
+                desc = str(f)
+            st.markdown("{}. {}".format(i + 1, desc))
+
+        if st.button("🗑️ Clear all filters", key="cm_clearfilters"):
+            st.session_state.cm_filters = []
+            st.rerun()
+
+# ── Apply button ──
+if cols_to_drop or st.session_state.get("cm_filters"):
+    if st.button("✅ Apply Column Changes & Filters", type="primary", width="stretch", key="cm_apply"):
+        work_df = _cm_df.copy()
+        # Drop columns
+        if cols_to_drop:
+            work_df = work_df.drop(columns=[c for c in cols_to_drop if c in work_df.columns])
+            st.success("🗑️ Dropped {} column(s)".format(len(cols_to_drop)))
+        # Apply filters
+        for f in st.session_state.get("cm_filters", []):
+            if f["col"] not in work_df.columns:
+                continue
+            before_len = len(work_df)
+            if f["type"] == "numeric":
+                if f["op"] == "between":
+                    work_df = work_df[(work_df[f["col"]] >= f["val"][0]) & (work_df[f["col"]] <= f["val"][1])]
+                elif f["op"] == ">=":
+                    work_df = work_df[work_df[f["col"]] >= f["val"]]
+                elif f["op"] == "<=":
+                    work_df = work_df[work_df[f["col"]] <= f["val"]]
+                elif f["op"] == ">":
+                    work_df = work_df[work_df[f["col"]] > f["val"]]
+                elif f["op"] == "<":
+                    work_df = work_df[work_df[f["col"]] < f["val"]]
+                elif f["op"] == "==":
+                    work_df = work_df[work_df[f["col"]] == f["val"]]
+                elif f["op"] == "!=":
+                    work_df = work_df[work_df[f["col"]] != f["val"]]
+            elif f["type"] == "datetime":
+                work_df = work_df[(work_df[f["col"]] >= pd.Timestamp(f["val"][0])) & (work_df[f["col"]] <= pd.Timestamp(f["val"][1]))]
+            elif f["type"] == "categorical":
+                if f["op"] == "include":
+                    work_df = work_df[work_df[f["col"]].isin(f["val"])]
+                else:
+                    work_df = work_df[~work_df[f["col"]].isin(f["val"])]
+            elif f["type"] == "text":
+                case_flag = f.get("case", False)
+                work_df = work_df[work_df[f["col"]].astype(str).str.contains(f["val"], case=case_flag, na=False)]
+            st.info("🔍 Filter on **{}**: {:,} → {:,} rows".format(f["col"], before_len, len(work_df)))
+
+        st.session_state.df_final = work_df
+        st.session_state.cm_filters = []
+        # Reset downstream
+        for k in ["results_df", "predictions_df", "best_bundle_bytes", "best_name", "preds_store", "task_type", "trained_models"]:
+            st.session_state[k] = None
+        st.success("✅ Applied! Dataset is now **{:,} rows × {:,} columns**".format(work_df.shape[0], work_df.shape[1]))
+        st.rerun()
+else:
+    st.info("No columns selected to drop and no filters added. Dataset unchanged.")
+
+# Show current working dataset shape
+_wdf = st.session_state.df_final if st.session_state.df_final is not None else df_clean
+st.markdown("<span class='pill good'>📋 Working dataset: {:,} rows × {:,} cols</span>".format(_wdf.shape[0], _wdf.shape[1]), unsafe_allow_html=True)
+with st.expander("👀 Preview working dataset", expanded=False):
+    st.dataframe(_wdf.head(MAX_PREVIEW), width="stretch")
+
+# ═══════════════════════════════════════════
 # STEP 5 — ANOMALY DETECTION
 # ═══════════════════════════════════════════
 st.markdown("---")
@@ -1045,7 +1207,7 @@ if st.session_state.results_df is not None:
     st.markdown('<div class="tooltip-box">📌 <b>What to do:</b> Ask any question about your uploaded data, cleaning results, or model performance. Claude analyzes your data context (schema, stats, sample rows, model results) and gives specific answers.</div>',unsafe_allow_html=True)
 
     # ── Retrieve API key from Streamlit secrets ──
-    api_key = st.secrets.get("CLAUD_KEY", None)
+    api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
 
     if not api_key:
         st.error("⚠️ `ANTHROPIC_API_KEY` not found in Streamlit secrets. Add it to `.streamlit/secrets.toml` or your Streamlit Cloud secrets.")
