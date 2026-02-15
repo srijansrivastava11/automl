@@ -1,5 +1,3 @@
-
-
 import pickle, warnings, io, json, re
 warnings.filterwarnings("ignore")
 import numpy as np, pandas as pd, streamlit as st
@@ -59,7 +57,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 st.markdown('<div class="title">⚡ AutoML POC — v1.0</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI → Download</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI (via Secrets) → Download</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════
 # SETTINGS (inline)
@@ -1044,50 +1042,51 @@ if st.session_state.results_df is not None:
     # ═══════════════════════════════════════════
     st.markdown("---")
     st.markdown("## 8️⃣ Ask AI About Your Data")
-    st.markdown('<div class="tooltip-box">📌 <b>What to do:</b> Enter your Anthropic API key, then ask any question about your uploaded data, cleaning results, or model performance. Claude analyzes your data context (schema, stats, sample rows, model results) and gives specific answers.</div>',unsafe_allow_html=True)
+    st.markdown('<div class="tooltip-box">📌 <b>What to do:</b> Ask any question about your uploaded data, cleaning results, or model performance. Claude analyzes your data context (schema, stats, sample rows, model results) and gives specific answers.</div>',unsafe_allow_html=True)
 
-    api_key = st.text_input("🔑 Anthropic API Key", type="password", help="Get yours at console.anthropic.com. Never stored.")
+    # ── Retrieve API key from Streamlit secrets ──
+    api_key = st.secrets.get("CLAUD_KEY", None)
 
-    if api_key:
-        if not HAS_ANTHROPIC:
-            st.error("Please install the anthropic package: `pip install anthropic`")
-        else:
-            # Build context
-            data_ctx = build_data_context(df_final)
-            model_ctx = ""
-            if st.session_state.results_df is not None:
-                model_ctx = "\nMODEL RESULTS:\n" + st.session_state.results_df.to_string(index=False)
-                if st.session_state.best_name:
-                    model_ctx += "\nBest model: " + st.session_state.best_name
-
-            # Display chat history
-            for msg in st.session_state.chat_history:
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
-
-            prompt = st.chat_input("Ask about your data... (e.g. 'What are the top 3 insights?' or 'Why is MAPE high?')")
-            # Chat input
-            if prompt :
-                st.session_state.chat_history.append({"role": "user", "content": prompt})
-                with st.chat_message("user"):
-                    st.markdown(prompt)
-
-                with st.chat_message("assistant"):
-                    with st.spinner("Claude is analyzing your data..."):
-                        try:
-                            response = ask_claude(prompt, data_ctx, model_ctx, api_key)
-                            st.markdown(response)
-                            st.session_state.chat_history.append({"role": "assistant", "content": response})
-                        except Exception as e:
-                            err_msg = "Error: {}".format(str(e))
-                            st.error(err_msg)
-                            st.session_state.chat_history.append({"role": "assistant", "content": err_msg})
-
-            if st.session_state.chat_history and st.button("🗑️ Clear chat history"):
-                st.session_state.chat_history = []
-                st.rerun()
+    if not api_key:
+        st.error("⚠️ `ANTHROPIC_API_KEY` not found in Streamlit secrets. Add it to `.streamlit/secrets.toml` or your Streamlit Cloud secrets.")
+        st.code('# .streamlit/secrets.toml\nANTHROPIC_API_KEY = "sk-ant-..."', language="toml")
+    elif not HAS_ANTHROPIC:
+        st.error("Please install the anthropic package: `pip install anthropic`")
     else:
-        st.info("Enter your Anthropic API key above to enable AI-powered data Q&A.")
+        # Build context
+        data_ctx = build_data_context(df_final)
+        model_ctx = ""
+        if st.session_state.results_df is not None:
+            model_ctx = "\nMODEL RESULTS:\n" + st.session_state.results_df.to_string(index=False)
+            if st.session_state.best_name:
+                model_ctx += "\nBest model: " + st.session_state.best_name
+
+        # Display chat history
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        prompt = st.chat_input("Ask about your data... (e.g. 'What are the top 3 insights?' or 'Why is MAPE high?')")
+        # Chat input
+        if prompt:
+            st.session_state.chat_history.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                with st.spinner("Claude is analyzing your data..."):
+                    try:
+                        response = ask_claude(prompt, data_ctx, model_ctx, api_key)
+                        st.markdown(response)
+                        st.session_state.chat_history.append({"role": "assistant", "content": response})
+                    except Exception as e:
+                        err_msg = "Error: {}".format(str(e))
+                        st.error(err_msg)
+                        st.session_state.chat_history.append({"role": "assistant", "content": err_msg})
+
+        if st.session_state.chat_history and st.button("🗑️ Clear chat history"):
+            st.session_state.chat_history = []
+            st.rerun()
 
     # ═══════════════════════════════════════════
     # STEP 9 — DOWNLOADS
@@ -1106,4 +1105,4 @@ if st.session_state.results_df is not None:
         else: st.info("No model bundle.")
 
 st.markdown("---")
-st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v1.0 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI Chat | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
+st.markdown("<div style='text-align:center;color:#94a3b8;font-size:0.82rem;padding:1rem 0'>AutoML POC v1.0 — Fast + KPI + JSON Expand + %/$ Parsing + Claude AI (via st.secrets) | Button-driven • Cached • Plotly</div>",unsafe_allow_html=True)
