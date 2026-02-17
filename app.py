@@ -57,7 +57,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 st.markdown('<div class="title">⚡ AutoML POC — v1.0</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI → Download</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub">Upload → Profile → KPI → Clean → Anomalies → Model → Evaluate → Ask AI  → Download</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════
 # SETTINGS (inline)
@@ -93,6 +93,17 @@ def make_unique_columns(cols):
     return new_cols, mapping
 
 def safe_csv(df): return df.to_csv(index=False).encode("utf-8")
+
+def _sanitize_for_display(df):
+    """Fix mixed-type columns that crash pyarrow/st.dataframe."""
+    d=df.copy()
+    for c in d.columns:
+        if d[c].dtype=="object":
+            # Check for mixed types (e.g., datetime + string in same column)
+            types=set(type(v).__name__ for v in d[c].dropna().head(50))
+            if len(types)>1:
+                d[c]=d[c].astype(str)
+    return d
 
 def fmt_pct(val):
     if val is None or (isinstance(val, float) and np.isnan(val)): return "N/A"
@@ -414,6 +425,11 @@ if uploaded_file.name.lower().endswith((".xlsx",".xls")):
 try: raw_df = load_file(uploaded_file, sheet=sheet_choice)
 except Exception as e: st.error(str(e)); st.stop()
 
+# Drop 'Unnamed' index columns from bad CSV exports
+unnamed_cols=[c for c in raw_df.columns if str(c).startswith("Unnamed")]
+if unnamed_cols:
+    raw_df=raw_df.drop(columns=unnamed_cols)
+
 had_dupes = raw_df.columns.duplicated().any()
 new_cols, col_map = make_unique_columns(raw_df.columns)
 raw_df.columns = new_cols; st.session_state.raw_df = raw_df
@@ -425,7 +441,7 @@ c3.metric("Numeric",str(len(raw_df.select_dtypes(include=np.number).columns)))
 c4.metric("Categorical",str(len(raw_df.select_dtypes(include=["object","category"]).columns)))
 if had_dupes: st.warning("⚠️ Duplicate column names renamed automatically.")
 with st.expander("👀 Preview raw data",expanded=False):
-    st.dataframe(raw_df.head(MAX_PREVIEW),width="stretch")
+    st.dataframe(_sanitize_for_display(raw_df.head(MAX_PREVIEW)),width="stretch")
 
 # ═══════════════════════════════════════════
 # STEP 2 — PROFILING
@@ -617,7 +633,7 @@ if st.session_state.get("pct_cols"):
     st.markdown("<span class='pill info-pill'>📐 Converted from %: {}</span>".format(", ".join(st.session_state.pct_cols[:10])),unsafe_allow_html=True)
 
 st.download_button("⬇️ Download cleaned CSV",data=safe_csv(df_clean),file_name="cleaned.csv",mime="text/csv",width="stretch")
-with st.expander("👀 Preview cleaned",expanded=False): st.dataframe(df_clean.head(MAX_PREVIEW),width="stretch")
+with st.expander("👀 Preview cleaned",expanded=False): st.dataframe(_sanitize_for_display(df_clean.head(MAX_PREVIEW)),width="stretch")
 date_cols=df_clean.select_dtypes(include=["datetime64[ns]"]).columns.tolist()
 
 # ═══════════════════════════════════════════
@@ -872,8 +888,16 @@ model_df=df_final[mcl].copy().dropna(subset=[target_col])
 if ts_mode and date_col: model_df=model_df.sort_values(date_col)
 X=model_df[feature_cols].copy(); y=model_df[target_col].copy()
 
+# Force target to numeric for regression (handles datetime/mixed targets)
+if task_type=="Regression":
+    if pd.api.types.is_datetime64_any_dtype(y):
+        y=y.astype(np.int64)//10**9  # Convert datetime to unix timestamp
+    else:
+        y=pd.to_numeric(y,errors="coerce")
+        model_df=model_df.loc[y.dropna().index]; X=X.loc[y.dropna().index]; y=y.dropna()
+
 for c in list(X.columns):
-    if str(X[c].dtype)=="datetime64[ns]":
+    if pd.api.types.is_datetime64_any_dtype(X[c]):
         X[c+"_year"]=X[c].dt.year; X[c+"_month"]=X[c].dt.month; X[c+"_day"]=X[c].dt.day; X[c+"_dow"]=X[c].dt.dayofweek
         X=X.drop(columns=[c])
 
@@ -1027,13 +1051,13 @@ if st.session_state.results_df is not None:
                 st.markdown("##### Actual vs Predicted")
                 if HAS_PLOTLY:
                     fig=go.Figure()
-                    fig.add_trace(go.Scatter(x=y_test.values,y=ypb,mode="markers",marker=dict(size=5,color="#6366f1",opacity=0.6),name="Pred"))
-                    mn,mx=min(y_test.min(),ypb.min()),max(y_test.max(),ypb.max())
+                    fig.add_trace(go.Scatter(x=y_test.values.astype(float),y=ypb.astype(float),mode="markers",marker=dict(size=5,color="#6366f1",opacity=0.6),name="Pred"))
+                    mn,mx=min(float(y_test.min()),float(ypb.min())),max(float(y_test.max()),float(ypb.max()))
                     fig.add_trace(go.Scatter(x=[mn,mx],y=[mn,mx],mode="lines",line=dict(dash="dash",color="#ef4444"),name="Perfect"))
                     fig.update_layout(height=400,xaxis_title="Actual",yaxis_title="Predicted",margin=dict(t=30,b=40)); st.plotly_chart(fig,width="stretch")
             with c2:
                 st.markdown("##### Residual Distribution")
-                res=y_test.values-ypb
+                res=y_test.values.astype(float)-ypb.astype(float)
                 if HAS_PLOTLY:
                     fig=px.histogram(x=res,nbins=40,color_discrete_sequence=["#f59e0b"],labels={"x":"Residual"})
                     fig.add_vline(x=0,line_dash="dash",line_color="red"); fig.update_layout(height=400,showlegend=False); st.plotly_chart(fig,width="stretch")
